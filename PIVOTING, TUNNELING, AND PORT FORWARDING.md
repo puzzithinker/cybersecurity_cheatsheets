@@ -1,5 +1,7 @@
 | Command                                                      | Description                                                  |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
+|`for /L %i in (1,1,254) do @ping -n 1 -w 100 172.16.6.%i | find "TTL="` | Ping sweep from windows machine |
+
 | `ifconfig`                                                     | Linux-based command that displays all current network configurations of a system. |
 | `ipconfig`                                                     | Windows-based command that displays all system network configurations. |
 | `netstat -r`                                                   | Command used to display the routing table for all IPv4-based protocols. |
