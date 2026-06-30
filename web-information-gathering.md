@@ -1,9 +1,12 @@
+# Web Information Gathering
+
 ## WHOIS
 
 | **Command** | **Description** |
 |-|-|
-| `export TARGET="domain.tld"` | Assign target to an environment variable. |
+| `export TARGET="example.com"` | Assign target to an environment variable. |
 | `whois $TARGET` | WHOIS lookup for the target. |
+| `curl -s "https://crt.sh/?q=%25.$TARGET&output=json" \| jq` | Quick cert transparency via crt.sh |
 
 
 ---
@@ -110,5 +113,50 @@ zoomeye
 | **Resource/Command** | **Description** |
 |-|-|
 | `ZAP` | [https://www.zaproxy.org/](https://www.zaproxy.org/) |
-| `ffuf -recursion -recursion-depth 1 -u http://192.168.10.10/FUZZ -w /opt/useful/SecLists/Discovery/Web-Content/raft-small-directories-lowercase.txt` | Discovering files and folders that cannot be spotted by browsing the website.
+| `ffuf -recursion -recursion-depth 1 -u http://192.168.10.10/FUZZ -w /opt/useful/SecLists/Discovery/Web-Content/raft-small-directories-lowercase.txt` | Discovering files and folders that cannot be spotted by browsing the website. |
 | `ffuf -w ./folders.txt:FOLDERS,./wordlist.txt:WORDLIST,./extensions.txt:EXTENSIONS -u http://www.target.domain/FOLDERS/WORDLISTEXTENSIONS` | Mutated bruteforcing against the target web server. |
+
+## 2026 Modern Recon Stack
+
+```bash
+# Subdomain discovery (ProjectDiscovery)
+subfinder -d $TARGET -all -silent | anew subs.txt
+amass enum -passive -d $TARGET | anew subs.txt
+assetfinder --subs-only $TARGET | anew subs.txt
+
+# Resolve + probe live hosts + tech
+cat subs.txt | httpx -silent -status-code -title -tech-detect -o live.txt
+
+# Fast URL crawling & param discovery
+gau $TARGET | anew urls.txt
+katana -list live.txt -d 2 -silent -o katana.txt
+
+# Screenshot / visual recon
+nuclei -l live.txt -t http/ -silent -o nuclei.txt
+```
+
+### Concrete Full Examples
+
+```bash
+# Passive + active subdomain + live probe
+subfinder -d example.com | tee subs.txt
+cat subs.txt | httpx -ports 80,443,8080,8443 -title -status-code -tech-detect -o live.txt
+
+# Wayback + gau for historical endpoints
+gau example.com | grep -E '\.(php|asp|aspx|jsp|json)$' | sort -u > old-endpoints.txt
+
+# Virtual host + directory combination
+ffuf -w vhosts.txt:FUZZ -u http://10.10.10.10/ -H "Host: FUZZ.example.com" -fs 0
+ffuf -w /usr/share/seclists/Discovery/Web-Content/common.txt:FUZZ \
+     -u https://target/FUZZ -mc 200,301,403
+```
+
+Popular passive sources: crt.sh, VirusTotal, Censys, Shodan, SecurityTrails, AlienVault OTX, URLScan, Wayback.
+
+Tools to add to your env:
+- `go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest`
+- `go install github.com/projectdiscovery/httpx/cmd/httpx@latest`
+- `go install github.com/projectdiscovery/katana/cmd/katana@latest`
+- `go install github.com/lc/gau/v2/cmd/gau@latest`
+
+Combine everything into recon pipelines and feed results into ffuf / nuclei / Burp scope.

